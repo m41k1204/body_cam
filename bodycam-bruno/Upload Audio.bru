@@ -1,0 +1,19 @@
+meta {
+  name: Upload Audio
+  type: http
+  seq: 3
+}
+
+post {
+  url: https://r1pwyuaxa9.execute-api.us-east-1.amazonaws.com/upload-audio
+  body: file
+  auth: inherit
+}
+
+headers {
+  Content-Type: image/jpeg
+}
+
+body:file {
+  file: @file(/home/m41k1/Documents/UTEC/2025-1/PI3/prueba2.wav) @contentType(audio/wave)
+}

@@ -1,0 +1,19 @@
+meta {
+  name: Upload Image
+  type: http
+  seq: 2
+}
+
+post {
+  url: https://r1pwyuaxa9.execute-api.us-east-1.amazonaws.com/
+  body: file
+  auth: inherit
+}
+
+headers {
+  Content-Type: image/jpeg
+}
+
+body:file {
+  file: @file(/home/m41k1/Pictures/gato_naranja.jpeg) @contentType(image/jpeg)
+}
