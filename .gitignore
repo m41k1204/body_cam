@@ -1,0 +1,3 @@
+lambda-client/node_modules
+lambda-client/.serverless
+lambda-client/.env
