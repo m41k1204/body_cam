@@ -1,3 +1,4 @@
+# ───────────────────────────── serverless.yml ─────────────────────────────
 service: bodycam-pi3
 useDotenv: true
 frameworkVersion: "3"
@@ -5,15 +6,20 @@ frameworkVersion: "3"
 plugins:
   - serverless-python-requirements
 
+# ──────────────────────────────── CUSTOM ─────────────────────────────────
 custom:
   bucket_name: ${env:BUCKET_NAME}
   account_number: ${env:ACCOUNT_NUMBER}
+
+  #  Binary formats that API Gateway debe pasar sin tocar
   apiGateway:
     binaryMediaTypes:
       - image/jpeg
       - audio/wav
       - audio/mpeg
+      - application/octet-stream #  ← ⚠️ nuevo para audio PCM crudo
 
+# ────────────────────────────── PROVIDER ────────────────────────────────
 provider:
   profile: personal
   name: aws
@@ -23,16 +29,24 @@ provider:
   memorySize: 256
 
   environment:
+    #  S3  + Transcribe
     BUCKET_NAME: ${self:custom.bucket_name}
     TRANSCRIPTS_PREFIX: transcripts/
     LANGUAGE_CODE: es-ES
+
+    #  Bedrock (opcional, si lo usas en otros handlers)
     NOVA_MODEL_ARN: arn:aws:bedrock:us-east-1:339712886600:inference-profile/us.amazon.nova-lite-v1:0
     ACCOUNT_NUMBER: ${self:custom.account_number}
+
+    #  Parámetros de tu audio PCM
+    SAMPLE_RATE: "8000" # Hz
+    CHANNELS: "1" # Mono
+    SAMPLE_WIDTH: "1" # Bytes por muestra → 8 bits
 
   iam:
     role:
       statements:
-        # ────────── S3 permisos (ya tenías) ──────────
+        # ──────────  S3  ──────────
         - Effect: Allow
           Action: s3:PutObject
           Resource: arn:aws:s3:::${self:provider.environment.BUCKET_NAME}/*
@@ -41,21 +55,21 @@ provider:
           Action: s3:GetObject
           Resource: arn:aws:s3:::${self:provider.environment.BUCKET_NAME}/${self:provider.environment.TRANSCRIPTS_PREFIX}*
 
-        # ────────── Amazon Transcribe ──────────
+        # ──────────  Amazon Transcribe  ──────────
         - Effect: Allow
           Action:
             - transcribe:StartTranscriptionJob
             - transcribe:GetTranscriptionJob
           Resource: "*"
 
-        # ────────── Amazon Bedrock (Nova Lite) ──────────
+        # ──────────  Amazon Bedrock (Nova Lite)  ──────────
         - Effect: Allow
-          Action:
-            - bedrock:InvokeModel
+          Action: bedrock:InvokeModel
           Resource:
             - arn:aws:bedrock:us-east-1::foundation-model/amazon.nova-lite-v1
             - arn:aws:bedrock:us-east-1::foundation-model/amazon.nova-lite-v1:0
 
+# ────────────────────────────── FUNCTIONS ───────────────────────────────
 functions:
   uploadImage:
     handler: src/image_handler.lambda_handler
@@ -65,7 +79,7 @@ functions:
           method: post
 
   uploadAudio:
-    handler: src/audio_handler.lambda_handler
+    handler: src/audio_handler.lambda_handler # ← usa el nuevo handler con conversión WAV
     events:
       - httpApi:
           path: /upload-audio
@@ -73,6 +87,8 @@ functions:
 
   transcribeComplete:
     handler: src/transcribe_handler.lambda_handler
+    timeout: 120
+    memorySize: 256
     events:
       - eventBridge:
           pattern:
@@ -83,5 +99,3 @@ functions:
             detail:
               TranscriptionJobStatus:
                 - COMPLETED
-    timeout: 120
-    memorySize: 256
